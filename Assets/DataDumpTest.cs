@@ -35,7 +35,7 @@ public class DataDumpTest : MonoBehaviour
         GUILayout.BeginVertical(GUILayout.Width(300));
         GUILayout.Label("DS4 Found: " + DS4Manager.HasWiimote());
         if (GUILayout.Button("Find DS4"))
-            DS4Manager.FindWiimotes();
+            DS4Manager.FindDS4s();
 
         if (GUILayout.Button("Cleanup"))
         {

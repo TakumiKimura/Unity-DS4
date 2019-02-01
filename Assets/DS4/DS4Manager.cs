@@ -1,34 +1,51 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System;
-using System.Threading;
 using System.Runtime.InteropServices;
 
 namespace DS4Api
 {
 
-    public class DS4Manager
+    public static class DS4Manager
     {
-        public const ushort pid = 0x05C4;
-        public const ushort pid2 = 0x09CC;
+        public static readonly ushort[] pids = new ushort[]
+        {
+            0x05C4, // CUH-ZCT1
+            0x09CC, // CUH-ZCT2
+        };
+
         public const ushort vid = 0x054C;
 
-        /// A list of all currently connected Wii Remotes.
-        public static List<DS4> Controllers { get { return _Controllers; } }
+        /// A list of all currently connected DS4s.
+        public static ReadOnlyCollection<DS4> Controllers
+        {
+            get
+            {
+                if(_Controllers == null) { return null; }
+                return _Controllers.AsReadOnly();
+            }
+        }
         private static List<DS4> _Controllers = new List<DS4>();
 
-        public static bool FindWiimotes()
+        public static bool FindDS4s()
         {
-            IntPtr ptr = HIDapi.hid_enumerate(vid, pid);
+            IntPtr ptr = IntPtr.Zero;
 
-            if (ptr == IntPtr.Zero)
+            foreach(var pid in pids)
             {
-                ptr = HIDapi.hid_enumerate(vid, pid2);
-                if (ptr == IntPtr.Zero)
+                ptr = HIDapi.hid_enumerate(vid, pid);
+                if(ptr != IntPtr.Zero)
                 {
-                    return false;
+                    break;
                 }
             }
+            
+            if (ptr == IntPtr.Zero)
+            {
+                return false;
+            }
+
             IntPtr cur_ptr = ptr;
 
             hid_device_info enumerate = (hid_device_info)Marshal.PtrToStructure(ptr, typeof(hid_device_info));
@@ -38,18 +55,16 @@ namespace DS4Api
             while (cur_ptr != IntPtr.Zero)
             {
                 DS4 remote = null;
-                bool fin = false;
+                
                 foreach (DS4 r in Controllers)
                 {
-                    if (fin)
-                        continue;
-
                     if (r.hidapi_path.Equals(enumerate.path))
                     {
                         remote = r;
-                        fin = true;
+                        break;
                     }
                 }
+
                 if (remote == null)
                 {
                     IntPtr handle = HIDapi.hid_open_path(enumerate.path);
@@ -58,14 +73,16 @@ namespace DS4Api
 
                     Debug.Log("Found New Remote: " + remote.hidapi_path);
 
-                    Controllers.Add(remote);
+                    _Controllers.Add(remote);
 
                     // TODO: Initialization (?)
                 }
 
                 cur_ptr = enumerate.next;
-                if (cur_ptr != IntPtr.Zero)
+                if(cur_ptr != IntPtr.Zero)
+                {
                     enumerate = (hid_device_info)Marshal.PtrToStructure(cur_ptr, typeof(hid_device_info));
+                }
             }
 
             HIDapi.hid_free_enumeration(ptr);
@@ -80,7 +97,7 @@ namespace DS4Api
                 if (remote.hidapi_handle != IntPtr.Zero)
                     HIDapi.hid_close(remote.hidapi_handle);
 
-                Controllers.Remove(remote);
+                _Controllers.Remove(remote);
             }
         }
 
